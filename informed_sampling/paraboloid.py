@@ -1,4 +1,3 @@
-from matplotlib import pyplot
 import numpy
 from scipy import integrate
 from sklearn.metrics import r2_score
@@ -204,7 +203,44 @@ class Paraboloid:
         z_predicted = self.predict(x, y)
         return numpy.sqrt(numpy.mean((z - z_predicted) ** 2))
 
-    def plot3d(self, xmin=0, xmax=1, ymin=0, ymax=1, save_path=None):
+    def plot2d(self, xmin, xmax, ymin, ymax, save_path=None):
+        from matplotlib import pyplot
+
+        x = numpy.linspace(xmin, xmax, 50)
+        y = numpy.linspace(ymin, ymax, 50)
+        X, Y = numpy.meshgrid(x, y)
+        Z = self.predict(X, Y)
+
+        # Create contour plot
+        figure = pyplot.figure(figsize=(8, 6))
+        contour = pyplot.contourf(X, Y, Z, levels=30, cmap="jet")
+        pyplot.colorbar(contour, label="Z value")
+
+        # Plot original data points
+        if self.data is not None:
+            pyplot.scatter(
+                self.data[0],
+                self.data[1],
+                color="red",
+                edgecolors="black",
+                label="Data Points",
+            )
+            pyplot.legend()
+
+        # Labels and title
+        pyplot.xlabel("X")
+        pyplot.ylabel("Y")
+        pyplot.title("Contour Plot of Fitted 3D Paraboloid")
+        pyplot.grid(True)
+        figure.tight_layout()
+
+        if save_path is None:
+            pyplot.show()
+        else:
+            figure.savefig(save_path)
+
+    def plot3d(self, xmin, xmax, ymin, ymax, save_path=None):
+        from matplotlib import pyplot
         from mpl_toolkits.mplot3d import Axes3D
 
         # Create 3D plot
@@ -235,41 +271,6 @@ class Paraboloid:
         axis.set_zlabel("Z")
         axis.set_title("3D Paraboloid Fit")
         axis.legend()
-
-        if save_path is None:
-            pyplot.show()
-        else:
-            figure.savefig(save_path)
-
-    def plot2d(self, xmin=0, xmax=1, ymin=0, ymax=1, save_path=None):
-
-        x = numpy.linspace(xmin, xmax, 50)
-        y = numpy.linspace(ymin, ymax, 50)
-        X, Y = numpy.meshgrid(x, y)
-        Z = self.predict(X, Y)
-
-        # Create contour plot
-        figure = pyplot.figure(figsize=(8, 6))
-        contour = pyplot.contourf(X, Y, Z, levels=30, cmap="jet")
-        pyplot.colorbar(contour, label="Z value")
-
-        # Plot original data points
-        if self.data is not None:
-            pyplot.scatter(
-                self.data[:, 0],
-                self.data[:, 1],
-                color="red",
-                edgecolors="black",
-                label="Data Points",
-            )
-            pyplot.legend()
-
-        # Labels and title
-        pyplot.xlabel("X")
-        pyplot.ylabel("Y")
-        pyplot.title("Contour Plot of Fitted 3D Paraboloid")
-        pyplot.grid(True)
-        figure.tight_layout()
 
         if save_path is None:
             pyplot.show()
