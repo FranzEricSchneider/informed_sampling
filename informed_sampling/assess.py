@@ -71,19 +71,24 @@ def plot_distributions(row, bounds):
     """
     Plot the true and fit data distributions
     """
-    figure, axes = pyplot.subplots(1, 2, figsize=(8, 6))
+    figure, axes = pyplot.subplots(1, 2, figsize=(12, 6))
     true = Paraboloid(
         coeff=[row.true_a, row.true_b, row.true_c, row.true_d, row.true_e, row.true_f]
     )
     fit = Paraboloid(
         coeff=[row.fit_a, row.fit_b, row.fit_c, row.fit_d, row.fit_e, row.fit_f]
     )
+    gradient = true.gradient(
+        x=numpy.array([bounds[0]] * 2 + [bounds[1]] * 2),
+        y=numpy.array([bounds[2], bounds[3]] * 2),
+    )
+    max_gradient = max(numpy.linalg.norm(gradient, axis=1))
     true.plot2d(
         *bounds,
         figure=figure,
         axis=axes[0],
         show=False,
-        title=f"True Distribution (integral: {true.integrate(bounds):.1f})",
+        title=f"True Distribution (integral: {true.integrate(bounds):.1f}, max ∇ {max_gradient:.1f})",
     )
     fit.plot2d(
         *bounds,
