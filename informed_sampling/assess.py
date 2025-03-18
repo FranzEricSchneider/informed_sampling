@@ -108,7 +108,7 @@ def full_sample_hist(dfs):
 
     mean = numpy.mean(samples)
 
-    pyplot.hist(samples, bins=50)
+    pyplot.hist(samples, bins=100)
     axis.axvline(mean, color="r", linestyle="dashed")
     pyplot.xlabel("Sample Values")
     pyplot.ylabel("Counts")
@@ -229,28 +229,33 @@ def cmap_iterator(name, N, vmin=0, vmax=1):
         yield cmap(i)
 
 
-def by_sample_num(metadatas, result_dfs):
+def by_sample_num(metadatas, result_dfs, N=10):
     unique = sorted(numpy.unique([m["num_samples"] for m in metadatas.values()]))
     y = []
     for value in unique:
         all_results = pandas.concat(
             [df for i, df in result_dfs.items() if metadatas[i]["num_samples"] == value]
         )
-        for mae in get_last_n(all_results, 1, "mae"):
-            y.append(mae)
+        y.append(
+            numpy.mean(
+                [mae for mae in get_last_n(all_results, N, "mae")]
+            )
+        )
 
-    figure, axis = pyplot.subplots(1, 1, figsize=(5, 5))
+    figure, axis = pyplot.subplots(1, 1, figsize=(8, 6))
     axis.bar(unique, y)
     axis.set_xlabel("Number of samples")
-    axis.set_ylabel("Best average MAE for a pattern")
+    axis.set_ylabel(f"Best average MAE for the top {N} patterns")
+    axis.set_title(f"Best average MAE for the top {N} patterns, by sample number")
     axis.set_xticks(unique)
+    figure.tight_layout()
     pyplot.show()
 
 
 def by_strategy(metadatas, result_dfs):
 
     unique = sorted(numpy.unique([m["strategy"] for m in metadatas.values()]))
-    figure, axis = pyplot.subplots(1, 1, figsize=(6, 6))
+    figure, axis = pyplot.subplots(1, 1, figsize=(8, 6))
 
     for value in unique:
         full_mae_cdf(
@@ -263,8 +268,32 @@ def by_strategy(metadatas, result_dfs):
             axis=axis,
             show=False,
             label=value,
-            title=f"All MAE for sampling strategy {value}",
         )
+    axis.set_title(f"All MAE for different strategies")
+    figure.legend()
+    pyplot.show()
+
+
+def by_fit_strategy(metadatas, result_dfs):
+
+    unique = sorted(
+        numpy.unique([m.get("fit_strategy", "all") for m in metadatas.values()])
+    )
+    figure, axis = pyplot.subplots(1, 1, figsize=(8, 6))
+
+    for value in unique:
+        full_mae_cdf(
+            dfs={
+                i: df
+                for i, df in result_dfs.items()
+                if metadatas[i].get("fit_strategy", "all") == value
+            },
+            figure=figure,
+            axis=axis,
+            show=False,
+            label=value,
+        )
+    axis.set_title(f"All MAE for different fit strategies")
     figure.legend()
     pyplot.show()
 
@@ -274,7 +303,7 @@ def by_augmentation(metadatas, result_dfs):
     unique = sorted(
         numpy.unique([m.get("augmentation", "none") for m in metadatas.values()])
     )
-    figure, axis = pyplot.subplots(1, 1, figsize=(6, 6))
+    figure, axis = pyplot.subplots(1, 1, figsize=(8, 6))
 
     for value in unique:
         full_mae_cdf(
@@ -287,8 +316,8 @@ def by_augmentation(metadatas, result_dfs):
             axis=axis,
             show=False,
             label=value,
-            title=f"All MAE for sampling augmentation {value}",
         )
+    axis.set_title(f"All MAE for different sampling augmentations")
     figure.legend()
     pyplot.show()
 
@@ -299,6 +328,7 @@ def metamasks(metadatas, include_flag, exclude_flag):
     datatypes = {
         "num_samples": int,
         "strategy": str,
+        "fit_strategy": str,
         "augmentation": str,
     }
 
@@ -311,7 +341,7 @@ def metamasks(metadatas, include_flag, exclude_flag):
         include = [
             i
             for i, meta in enumerate(metadatas)
-            if any([meta[k] == v for k, v in zip(keys, values)])
+            if any([meta.get(k, None) == v for k, v in zip(keys, values)])
         ]
 
     if exclude_flag is None:
@@ -323,7 +353,7 @@ def metamasks(metadatas, include_flag, exclude_flag):
         exclude = [
             i
             for i, meta in enumerate(metadatas)
-            if any([meta[k] == v for k, v in zip(keys, values)])
+            if any([meta.get(k, None) == v for k, v in zip(keys, values)])
         ]
 
     return [i for i in include if i not in exclude]
@@ -344,7 +374,7 @@ if __name__ == "__main__":
         "-N",
         "--top-N",
         help="Take the top N results and display them, or -1 for all",
-        default=1,
+        default=5,
         type=int,
     )
     parser.add_argument(
@@ -380,6 +410,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--by-strategy",
         help="Plot error CDF by sampling strategy",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--by-fit-strategy",
+        help="Plot error CDF by fitting strategy",
         action="store_true",
     )
     parser.add_argument(
@@ -443,5 +478,7 @@ if __name__ == "__main__":
         by_sample_num(metadatas, result_dfs)
     if args.by_strategy:
         by_strategy(metadatas, result_dfs)
+    if args.by_fit_strategy:
+        by_fit_strategy(metadatas, result_dfs)
     if args.by_augmentation:
         by_augmentation(metadatas, result_dfs)

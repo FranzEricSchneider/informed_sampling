@@ -9,7 +9,7 @@ def test_generate():
     x_mean = 10
     y_mean = 30
     bounds = numpy.array([0, 40, 0, 50])
-    max_slope = 200
+    max_slope = 20
     integral_values = (1000, 9000)
 
     peaks = []
@@ -114,7 +114,7 @@ class TestIntegrate:
 
 def test_r2():
     # Test a perfect fit
-    pboid = Paraboloid(coeff=(-1, -2, 3, -4, 5, -6))
+    pboid = Paraboloid(coeff=(-1, -2, 3, -4, 5, 100))
     pboid.data = numpy.vstack(pboid.predict_grid([-2, 2, -5, 5], spacing=0.1))
     assert numpy.isclose(pboid.r2_score(), 1.0)
 
@@ -141,11 +141,11 @@ class TestErrors:
     @pytest.mark.parametrize("error_fn", ["mae", "rmse"])
     @pytest.mark.parametrize("offset", [-1, 1])
     def test_offset(self, error_fn, offset):
-        pboid1 = Paraboloid(coeff=(-1, -2, 3, -4, 5, -6))
+        pboid1 = Paraboloid(coeff=(-1, -1, 0, -4, 5, 100))
         x, y, z = pboid1.predict_grid([-2, 2, -5, 5], spacing=0.1)
 
         # The last coefficient (constant term) is +-1
-        pboid2 = Paraboloid(coeff=(-1, -2, 3, -4, 5, -6 + offset))
+        pboid2 = Paraboloid(coeff=(-1, -1, 0, -4, 5, 100 + offset))
         assert numpy.isclose(getattr(pboid2, error_fn)(x, y, z), 1.0)
 
 

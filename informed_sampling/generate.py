@@ -132,6 +132,7 @@ def main(
     num_samples,
     strategy,
     sampler,
+    fit_strategy,
     augmentation,
     noise_std,
 ):
@@ -147,6 +148,7 @@ def main(
         "num_samples": num_samples,
         "noise_std": noise_std,
         "strategy": strategy,
+        "fit_strategy": fit_strategy,
         "augmentation": augmentation,
     }
 
@@ -191,7 +193,7 @@ def main(
             )
             # Add the noise to the measurements
             z = pboid.predict(aug_x, aug_y) * noise
-            fit_pboid = Paraboloid.fit(aug_x, aug_y, z)
+            fit_pboid = Paraboloid.fit(aug_x, aug_y, z, fit_strategy)
 
             # Build up our assessment data
             result = {
@@ -327,6 +329,13 @@ if __name__ == "__main__":
         default="random",
     )
     parser.add_argument(
+        "-F",
+        "--fit-strategy",
+        help="Which point fitting strategy to use",
+        choices=["all", "nonzero"],
+        default="all",
+    )
+    parser.add_argument(
         "-A",
         "--augmentation",
         help="Possible augmentation options",
@@ -362,6 +371,7 @@ if __name__ == "__main__":
         num_samples=args.num_samples,
         strategy=args.sampler_strategy,
         sampler=sampler_map[args.sampler_strategy],
+        fit_strategy=args.fit_strategy,
         augmentation=args.augmentation,
         noise_std=args.noise_std,
     )
