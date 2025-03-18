@@ -7,6 +7,7 @@ import numpy
 import pandas
 import time
 from tqdm import tqdm
+import yaml
 
 from informed_sampling.paraboloid import Paraboloid
 
@@ -28,8 +29,15 @@ def main(
 
     # Store the data as dictionaries in a list with shared keys, as this is
     # easy to turn into a DataFrame
-    patterns = []
+    patterns = {}
     results = []
+    metadata = {
+        "bounds": bounds.tolist(),
+        "max_slope": max_slope,
+        "integral_values": integral_values,
+        "num_samples": num_samples,
+        "noise_std": noise_std,
+    }
 
     for pattern_idx in tqdm(range(assess_j)):
         # Sample X and Y locations that we want to sample the measurements
@@ -44,10 +52,10 @@ def main(
             high=bounds[3] + sample_buffer,
             size=num_samples,
         )
-        pattern = {"pattern": pattern_idx}
+        pattern = {}
         for i, xy in enumerate(zip(x, y)):
             pattern[f"sample_{i:02}"] = numpy.array(xy).tolist()
-        patterns.append(pattern)
+        patterns[pattern_idx] = pattern
 
         for _ in range(gen_i):
 
@@ -91,12 +99,12 @@ def main(
 
     timestamp = int(time.time() * 1e6)
     pandas.DataFrame(results).to_csv(
-        f"/tmp/parabola_results_{timestamp}.csv", index=False
+        f"/tmp/parabola_results_{timestamp}.csv",
+        index=False,
     )
-    pandas.DataFrame(patterns).to_csv(
-        f"/tmp/parabola_patterns_{timestamp}.csv", index=False
-    )
-    print(f"Saved run to /tmp/parabola_*_{timestamp}.csv")
+    yaml.dump(patterns, open(f"/tmp/parabola_patterns_{timestamp}.yaml", "w"))
+    yaml.dump(metadata, open(f"/tmp/parabola_metadata_{timestamp}.yaml", "w"))
+    print(f"Saved run to /tmp/parabola_*_{timestamp}.csv/yaml")
 
 
 if __name__ == "__main__":

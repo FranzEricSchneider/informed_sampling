@@ -203,7 +203,18 @@ class Paraboloid:
         z_predicted = self.predict(x, y)
         return numpy.sqrt(numpy.mean((z - z_predicted) ** 2))
 
-    def plot2d(self, xmin, xmax, ymin, ymax, save_path=None):
+    def plot2d(
+        self,
+        xmin,
+        xmax,
+        ymin,
+        ymax,
+        figure=None,
+        axis=None,
+        save_path=None,
+        show=True,
+        title="Contour Plot of Fitted 3D Paraboloid",
+    ):
         from matplotlib import pyplot
 
         x = numpy.linspace(xmin, xmax, 50)
@@ -211,33 +222,38 @@ class Paraboloid:
         X, Y = numpy.meshgrid(x, y)
         Z = self.predict(X, Y)
 
+        if figure is None or axis is None:
+            figure, axis = pyplot.subplots(figsize=(8, 6))
+
         # Create contour plot
-        figure = pyplot.figure(figsize=(8, 6))
-        contour = pyplot.contourf(X, Y, Z, levels=30, cmap="jet")
-        pyplot.colorbar(contour, label="Z value")
+        contour = axis.contourf(X, Y, Z, levels=30, cmap="jet")
+        figure.colorbar(contour, ax=axis, label="Z value")
 
         # Plot original data points
         if self.data is not None:
-            pyplot.scatter(
+            axis.scatter(
                 self.data[0],
                 self.data[1],
                 color="red",
                 edgecolors="black",
                 label="Data Points",
             )
-            pyplot.legend()
+            axis.legend()
 
         # Labels and title
-        pyplot.xlabel("X")
-        pyplot.ylabel("Y")
-        pyplot.title("Contour Plot of Fitted 3D Paraboloid")
-        pyplot.grid(True)
+        axis.set_xlabel("X")
+        axis.set_ylabel("Y")
+        axis.set_title(title)
+        axis.grid(True)
         figure.tight_layout()
 
         if save_path is None:
-            pyplot.show()
+            if show:
+                pyplot.show()
         else:
             figure.savefig(save_path)
+
+        return figure, axis
 
     def plot3d(self, xmin, xmax, ymin, ymax, save_path=None):
         from matplotlib import pyplot
