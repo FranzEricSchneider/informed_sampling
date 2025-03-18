@@ -94,6 +94,29 @@ def grid_sample(bounds, buffer, N):
     return x, y
 
 
+def circle_sample(bounds, buffer, N):
+    """
+    Like Poisson, but we reject points that aren't in a circle around the
+    center of the bounds.
+    """
+    center = numpy.array([numpy.mean(bounds[:2]), numpy.mean(bounds[2:])])
+    radius = min([bounds[1], bounds[3]]) / 2
+
+    done = False
+    while not done:
+        x, y = poisson_sample(bounds, buffer, N * 2)
+        dist = numpy.linalg.norm(numpy.vstack([x, y]).T - center, axis=1)
+        mask = dist < radius
+        if sum(mask) >= N:
+            done = True
+            where = numpy.where(mask)[0]
+            x = numpy.array([x[i] for i in where[:N]])
+            y = numpy.array([y[i] for i in where[:N]])
+
+    return x, y
+
+
+
 def main(
     x_mean,
     x_std,
@@ -266,7 +289,7 @@ if __name__ == "__main__":
         "-S",
         "--sampler-strategy",
         help="Which sampling strategy to use",
-        choices=["random", "poisson", "grid"],
+        choices=["random", "poisson", "grid", "circle"],
         default="random",
     )
     args = parser.parse_args()
@@ -281,6 +304,7 @@ if __name__ == "__main__":
         "random": random_sample,
         "poisson": poisson_sample,
         "grid": grid_sample,
+        "circle": circle_sample,
     }
 
     main(

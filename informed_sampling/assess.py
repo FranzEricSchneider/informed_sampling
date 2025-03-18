@@ -21,11 +21,21 @@ def get_last_n(df, N, column):
     return df.groupby(["pattern", "file_index"])[column].mean().nsmallest(N)
 
 
-def full_mae_hist(
+def cdf(axis, vector, label="", percentiles=None):
+    x = numpy.sort(vector)
+    y = numpy.linspace(0, 1, len(vector))
+    axis.plot(x, y, lw=2, label=label)
+    if percentiles is not None:
+        for percentile in percentiles:
+            axis.axvline(numpy.percentile(vector, percentile), color="r", linestyle="dashed")
+
+
+def full_mae_cdf(
     dfs,
     show=True,
     figure=None,
     axis=None,
+    label="",
     title="Histogram of the average MAE value over all patterns",
     percentile=95,
 ):
@@ -45,10 +55,11 @@ def full_mae_hist(
     if figure is None or axis is None:
         figure, axis = pyplot.subplots(figsize=(8, 6))
 
-    axis.hist(filtered, bins=35)
+    cdf(axis, filtered, label)
     axis.set_xlabel("MAE")
     axis.set_ylabel("Counts")
     axis.set_title(title)
+    axis.grid()
     figure.tight_layout()
     if show:
         pyplot.show()
@@ -205,10 +216,10 @@ def by_sample_num(metadatas, result_dfs):
 def by_strategy(metadatas, result_dfs):
 
     unique = sorted(numpy.unique([m["strategy"] for m in metadatas]))
-    figure, axes = pyplot.subplots(1, len(unique), figsize=(10, 6))
+    figure, axis = pyplot.subplots(1, 1, figsize=(6, 6))
 
-    for value, axis in zip(unique, axes):
-        full_mae_hist(
+    for value in unique:
+        full_mae_cdf(
             dfs=[
                 df
                 for i, df in enumerate(result_dfs)
@@ -217,9 +228,46 @@ def by_strategy(metadatas, result_dfs):
             figure=figure,
             axis=axis,
             show=False,
+            label=value,
             title=f"All MAE for sampling strategy {value}",
         )
+    figure.legend()
     pyplot.show()
+
+
+def metamasks(metadatas, include_flag, exclude_flag):
+
+    # List the allowable filter candidates
+    datatypes = {
+        "num_samples": int,
+        "strategy": str,
+    }
+
+    if include_flag is None:
+        include = list(range(len(metadatas)))
+    else:
+        options = [opt.split(":") for opt in include_flag]
+        keys = [opt[0] for opt in options]
+        values = [datatypes[opt[0]](opt[1]) for opt in options]
+        include = [
+            i
+            for i, meta in enumerate(metadatas)
+            if any([meta[k] == v for k, v in zip(keys, values)])
+        ]
+
+    if exclude_flag is None:
+        exclude = []
+    else:
+        options = [opt.split(":") for opt in exclude_flag]
+        keys = [opt[0] for opt in options]
+        values = [datatypes[opt[0]](opt[1]) for opt in options]
+        exclude = [
+            i
+            for i, meta in enumerate(metadatas)
+            if any([meta[k] == v for k, v in zip(keys, values)])
+        ]
+
+    return [i for i in include if i not in exclude]
 
 
 if __name__ == "__main__":
@@ -241,7 +289,7 @@ if __name__ == "__main__":
         type=int,
     )
     parser.add_argument(
-        "--full-mae-hist",
+        "--full-mae-cdf",
         help="Histogram of all error values",
         action="store_true",
     )
@@ -270,6 +318,16 @@ if __name__ == "__main__":
         help="Plot error histogram by sampling strategy",
         action="store_true",
     )
+    parser.add_argument(
+        "--exclude",
+        help="Metadata values we will avoid, written as key:value",
+        nargs="+",
+    )
+    parser.add_argument(
+        "--include",
+        help="Metadata values we will include and avoid all else, written as key:value",
+        nargs="+",
+    )
     args = parser.parse_args()
 
     # Check that all results exist and have corresponding patterns
@@ -290,11 +348,18 @@ if __name__ == "__main__":
     patterns = [yaml.safe_load(path.open("r")) for path in pattern_paths]
     metadatas = [yaml.safe_load(path.open("r")) for path in metadata_paths]
 
-    for i, path in enumerate(metadata_paths):
-        print(f"File index: {i} = {path}")
+    # Filter by include and exclude
+    include = metamasks(metadatas, args.include, args.exclude)
+    result_dfs = [result_dfs[i] for i in include]
+    patterns = [patterns[i] for i in include]
+    metadatas = [metadatas[i] for i in include]
 
-    if args.full_mae_hist:
-        full_mae_hist(result_dfs)
+    for i, path in enumerate(metadata_paths):
+        if i in include:
+            print(f"File index: {i} = {path}")
+
+    if args.full_mae_cdf:
+        full_mae_cdf(result_dfs)
     if args.full_sample_hist:
         full_sample_hist(result_dfs)
     if args.n_dists:
