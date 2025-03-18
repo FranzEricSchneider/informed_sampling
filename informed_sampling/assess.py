@@ -44,7 +44,7 @@ def full_mae_cdf(
     """
 
     errors = []
-    for df in dfs:
+    for df in dfs.values():
         errors.extend(df.groupby("pattern")["mae"].mean().tolist())
     errors = numpy.array(errors)
 
@@ -97,7 +97,7 @@ def plot_distributions(row, bounds):
 def full_sample_hist(dfs):
 
     samples = []
-    for df in dfs:
+    for df in dfs.values():
         for col in df.columns:
             if "sample" in col:
                 samples.extend(df[col].tolist())
@@ -117,7 +117,9 @@ def full_sample_hist(dfs):
 
 def n_dists(metadatas, result_dfs, N):
     i = 0
-    for meta, df in zip(metadatas, result_dfs):
+    for file_index in metadatas.keys():
+        meta = metadatas[file_index]
+        df = result_dfs[file_index]
         for row in df.itertuples(index=False):
             plot_distributions(row, meta["bounds"])
             i += 1
@@ -127,7 +129,7 @@ def n_dists(metadatas, result_dfs, N):
 
 def sample_patterns(metadatas, result_dfs, patterns, N):
 
-    all_results = pandas.concat(result_dfs)
+    all_results = pandas.concat(result_dfs.values())
     worst = get_top_n(all_results, N, "mae")
     best = get_last_n(all_results, N, "mae")
 
@@ -184,6 +186,30 @@ def sample_patterns(metadatas, result_dfs, patterns, N):
     pyplot.show()
 
 
+def bar_patterns(metas, result_dfs, N):
+
+    all_results = pandas.concat(result_dfs.values())
+    worst = get_top_n(all_results, N, "mae")
+    best = get_last_n(all_results, N, "mae")
+
+    x = list(range(2 * N + 1))
+    y = numpy.hstack([worst.values, [0], best[::-1].values])
+    labels = [
+        f"{metas[fi]['strategy']}-S#{metas[fi]['num_samples']}"
+        for series in [worst, best[::-1]]
+        for _, fi in series.keys()
+    ]
+    labels.insert(N, "...")
+
+    figure = pyplot.figure(figsize=(15, 5))
+    pyplot.bar(x, y)
+    pyplot.xticks(x, labels, rotation=90)
+    pyplot.ylim(min(best) * 0.95, max(best) * 1.05)
+    pyplot.ylabel("MAE")
+    figure.tight_layout()
+    pyplot.show()
+
+
 def cmap_iterator(name, N, vmin=0, vmax=1):
     """Yields RGBA"""
     cmap = pyplot.get_cmap(name)
@@ -192,13 +218,13 @@ def cmap_iterator(name, N, vmin=0, vmax=1):
 
 
 def by_sample_num(metadatas, result_dfs):
-    unique = sorted(numpy.unique([m["num_samples"] for m in metadatas]))
+    unique = sorted(numpy.unique([m["num_samples"] for m in metadatas.values()]))
     y = []
     for value in unique:
         all_results = pandas.concat(
             [
                 df
-                for i, df in enumerate(result_dfs)
+                for i, df in result_dfs.items()
                 if metadatas[i]["num_samples"] == value
             ]
         )
@@ -215,16 +241,16 @@ def by_sample_num(metadatas, result_dfs):
 
 def by_strategy(metadatas, result_dfs):
 
-    unique = sorted(numpy.unique([m["strategy"] for m in metadatas]))
+    unique = sorted(numpy.unique([m["strategy"] for m in metadatas.values()]))
     figure, axis = pyplot.subplots(1, 1, figsize=(6, 6))
 
     for value in unique:
         full_mae_cdf(
-            dfs=[
-                df
-                for i, df in enumerate(result_dfs)
+            dfs={
+                i: df
+                for i, df in result_dfs.items()
                 if metadatas[i]["strategy"] == value
-            ],
+            },
             figure=figure,
             axis=axis,
             show=False,
@@ -309,6 +335,11 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "--bar-patterns",
+        help="Plot N best and worst patterns by metadata key",
+        action="store_true",
+    )
+    parser.add_argument(
         "--by-sample-num",
         help="Plot error of best pattern by number of samples",
         action="store_true",
@@ -346,13 +377,13 @@ if __name__ == "__main__":
     for i, df in enumerate(result_dfs):
         df["file_index"] = i
     patterns = [yaml.safe_load(path.open("r")) for path in pattern_paths]
-    metadatas = [yaml.safe_load(path.open("r")) for path in metadata_paths]
+    metadatas = [yaml.safe_load(path.open("r")) for i, path in enumerate(metadata_paths)]
 
     # Filter by include and exclude
     include = metamasks(metadatas, args.include, args.exclude)
-    result_dfs = [result_dfs[i] for i in include]
-    patterns = [patterns[i] for i in include]
-    metadatas = [metadatas[i] for i in include]
+    result_dfs = {i: result_dfs[i] for i in include}
+    patterns = {i: patterns[i] for i in include}
+    metadatas = {i: metadatas[i] for i in include}
 
     for i, path in enumerate(metadata_paths):
         if i in include:
@@ -366,6 +397,8 @@ if __name__ == "__main__":
         n_dists(metadatas, result_dfs, args.top_N)
     if args.sample_patterns:
         sample_patterns(metadatas, result_dfs, patterns, args.top_N)
+    if args.bar_patterns:
+        bar_patterns(metadatas, result_dfs, args.top_N)
     if args.by_sample_num:
         by_sample_num(metadatas, result_dfs)
     if args.by_strategy:

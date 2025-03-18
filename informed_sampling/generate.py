@@ -16,6 +16,8 @@ from informed_sampling.paraboloid import Paraboloid
 # Make some pre-made grids as fractions of the available space. The points are
 # in no particular order
 GRIDS = {
+    4: numpy.array([[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]),
+    5: numpy.array([[0.5, 0], [0, 0.5], [0.5, 0.5], [1, 0.5], [0.5, 1]]),
     6: numpy.array([[0, 0], [1, 0], [0, 1], [1, 1], [0.3, 0.5], [0.7, 0.5]]),
     7: numpy.array(
         [[0.33, 0], [0.66, 0], [0, 0.5], [0.5, 0.5], [1, 0.5], [0.33, 1], [0.66, 1]]

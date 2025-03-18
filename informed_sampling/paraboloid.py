@@ -100,7 +100,7 @@ class Paraboloid:
     def fit(cls, x, y, z):
         """Inputs should be (N,) arrays, at least 6"""
 
-        assert len(x) >= 6, "At least 6 points needed for full fit"
+        assert len(x) >= 4, "At least 4 points needed for full fit"
 
         # Construct the design matrix for least squares fitting
         A = numpy.column_stack([x**2, y**2, x * y, x, y, numpy.ones_like(x)])
