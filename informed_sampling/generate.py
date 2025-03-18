@@ -17,10 +17,39 @@ from informed_sampling.paraboloid import Paraboloid
 # in no particular order
 GRIDS = {
     6: numpy.array([[0, 0], [1, 0], [0, 1], [1, 1], [0.3, 0.5], [0.7, 0.5]]),
-    7: numpy.array([[0.33, 0], [0.66, 0], [0, 0.5], [0.5, 0.5], [1, 0.5], [0.33, 1], [0.66, 1]]),
-    8: numpy.array([[0, 0], [0.5, 0], [1, 0], [0.25, 0.5], [0.75, 0.5], [0, 1], [0.5, 1], [1, 1]]),
-    9: numpy.array([[0, 0], [0.5, 0], [1, 0], [0, 0.5], [0.5, 0.5], [1, 0.5], [0, 1], [0.5, 1], [1, 1]]),
-    10: numpy.array([[0, 0], [0.5, 0], [1, 0], [0.25, 0.33], [0.75, 0.33], [0.25, 0.66], [0.75, 0.66], [0, 1], [0.5, 1], [1, 1]]),
+    7: numpy.array(
+        [[0.33, 0], [0.66, 0], [0, 0.5], [0.5, 0.5], [1, 0.5], [0.33, 1], [0.66, 1]]
+    ),
+    8: numpy.array(
+        [[0, 0], [0.5, 0], [1, 0], [0.25, 0.5], [0.75, 0.5], [0, 1], [0.5, 1], [1, 1]]
+    ),
+    9: numpy.array(
+        [
+            [0, 0],
+            [0.5, 0],
+            [1, 0],
+            [0, 0.5],
+            [0.5, 0.5],
+            [1, 0.5],
+            [0, 1],
+            [0.5, 1],
+            [1, 1],
+        ]
+    ),
+    10: numpy.array(
+        [
+            [0, 0],
+            [0.5, 0],
+            [1, 0],
+            [0.25, 0.33],
+            [0.75, 0.33],
+            [0.25, 0.66],
+            [0.75, 0.66],
+            [0, 1],
+            [0.5, 1],
+            [1, 1],
+        ]
+    ),
 }
 
 
@@ -57,9 +86,9 @@ def grid_sample(bounds, buffer, N):
     y = base[1] * y_range + bounds[2] + 2 * buffer
 
     # Add in some small (capped) local noise
-    x += numpy.random.normal(loc=0, scale=0.5*buffer, size=len(x))
+    x += numpy.random.normal(loc=0, scale=0.5 * buffer, size=len(x))
     x = numpy.clip(x, bounds[0] + buffer, bounds[1] - buffer)
-    y += numpy.random.normal(loc=0, scale=0.5*buffer, size=len(y))
+    y += numpy.random.normal(loc=0, scale=0.5 * buffer, size=len(y))
     y = numpy.clip(y, bounds[0] + buffer, bounds[1] - buffer)
 
     return x, y
