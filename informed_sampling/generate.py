@@ -5,11 +5,64 @@ Provide a tool to produce data on sample spots for these paraboloids.
 import argparse
 import numpy
 import pandas
+from scipy.stats import qmc
 import time
 from tqdm import tqdm
 import yaml
 
 from informed_sampling.paraboloid import Paraboloid
+
+
+# Make some pre-made grids as fractions of the available space. The points are
+# in no particular order
+GRIDS = {
+    6: numpy.array([[0, 0], [1, 0], [0, 1], [1, 1], [0.3, 0.5], [0.7, 0.5]]),
+    7: numpy.array([[0.33, 0], [0.66, 0], [0, 0.5], [0.5, 0.5], [1, 0.5], [0.33, 1], [0.66, 1]]),
+    8: numpy.array([[0, 0], [0.5, 0], [1, 0], [0.25, 0.5], [0.75, 0.5], [0, 1], [0.5, 1], [1, 1]]),
+    9: numpy.array([[0, 0], [0.5, 0], [1, 0], [0, 0.5], [0.5, 0.5], [1, 0.5], [0, 1], [0.5, 1], [1, 1]]),
+    10: numpy.array([[0, 0], [0.5, 0], [1, 0], [0.25, 0.33], [0.75, 0.33], [0.25, 0.66], [0.75, 0.66], [0, 1], [0.5, 1], [1, 1]]),
+}
+
+
+def random_sample(bounds, buffer, N):
+    x = numpy.random.uniform(
+        low=bounds[0] + buffer,
+        high=bounds[1] - buffer,
+        size=N,
+    )
+    y = numpy.random.uniform(
+        low=bounds[2] + buffer,
+        high=bounds[3] - buffer,
+        size=N,
+    )
+    return x, y
+
+
+def poisson_sample(bounds, buffer, N):
+    points = qmc.scale(
+        # 2-dimensional sampler
+        qmc.LatinHypercube(d=2).random(n=N),
+        [bounds[0] + buffer, bounds[2] + buffer],
+        [bounds[1] - buffer, bounds[3] - buffer],
+    )
+    return points[:, 0], points[:, 1]
+
+
+def grid_sample(bounds, buffer, N):
+
+    base = GRIDS[N].T
+    x_range = bounds[1] - bounds[0] - 4 * buffer
+    y_range = bounds[3] - bounds[2] - 4 * buffer
+    x = base[0] * x_range + bounds[0] + 2 * buffer
+    y = base[1] * y_range + bounds[2] + 2 * buffer
+
+    # Add in some small (capped) local noise
+    x += numpy.random.normal(loc=0, scale=0.5*buffer, size=len(x))
+    x = numpy.clip(x, bounds[0] + buffer, bounds[1] - buffer)
+    y += numpy.random.normal(loc=0, scale=0.5*buffer, size=len(y))
+    y = numpy.clip(y, bounds[0] + buffer, bounds[1] - buffer)
+
+    return x, y
 
 
 def main(
@@ -24,6 +77,8 @@ def main(
     assess_j,
     sample_buffer,
     num_samples,
+    strategy,
+    sampler,
     noise_std,
 ):
 
@@ -37,21 +92,13 @@ def main(
         "integral_values": integral_values,
         "num_samples": num_samples,
         "noise_std": noise_std,
+        "strategy": strategy,
     }
 
     for pattern_idx in tqdm(range(assess_j)):
         # Sample X and Y locations that we want to sample the measurements
         # from on the known distribution
-        x = numpy.random.uniform(
-            low=bounds[0] + sample_buffer,
-            high=bounds[1] + sample_buffer,
-            size=num_samples,
-        )
-        y = numpy.random.uniform(
-            low=bounds[2] + sample_buffer,
-            high=bounds[3] + sample_buffer,
-            size=num_samples,
-        )
+        x, y = sampler(bounds, sample_buffer, num_samples)
         pattern = {}
         for i, xy in enumerate(zip(x, y)):
             pattern[f"sample_{i:02}"] = numpy.array(xy).tolist()
@@ -186,6 +233,13 @@ if __name__ == "__main__":
         default=0.0,
         type=float,
     )
+    parser.add_argument(
+        "-S",
+        "--sampler-strategy",
+        help="Which sampling strategy to use",
+        choices=["random", "poisson", "grid"],
+        default="random",
+    )
     args = parser.parse_args()
 
     assert args.xmax > args.xmin
@@ -193,6 +247,12 @@ if __name__ == "__main__":
     assert args.intmax > args.intmin
     assert args.max_slope > 0
     assert args.sample_buffer >= 0
+
+    sampler_map = {
+        "random": random_sample,
+        "poisson": poisson_sample,
+        "grid": grid_sample,
+    }
 
     main(
         x_mean=numpy.mean([args.xmin, args.xmax]),
@@ -206,5 +266,7 @@ if __name__ == "__main__":
         assess_j=args.assess_iterations,
         sample_buffer=args.sample_buffer,
         num_samples=args.num_samples,
+        strategy=args.sampler_strategy,
+        sampler=sampler_map[args.sampler_strategy],
         noise_std=args.noise_std,
     )

@@ -21,7 +21,14 @@ def get_last_n(df, N, column):
     return df.groupby(["pattern", "file_index"])[column].mean().nsmallest(N)
 
 
-def full_mae_hist(dfs):
+def full_mae_hist(
+    dfs,
+    show=True,
+    figure=None,
+    axis=None,
+    title="Histogram of the average MAE value over all patterns",
+    percentile=95,
+):
     """
     Take in results dfs, group by pattern, and histogram the average MAE.
     """
@@ -29,13 +36,22 @@ def full_mae_hist(dfs):
     errors = []
     for df in dfs:
         errors.extend(df.groupby("pattern")["mae"].mean().tolist())
+    errors = numpy.array(errors)
 
-    pyplot.hist(errors, bins=25)
-    pyplot.xlabel("MAE")
-    pyplot.ylabel("Counts")
-    pyplot.title("Histogram of the average MAE value over all patterns")
-    pyplot.tight_layout()
-    pyplot.show()
+    # Remove outliers
+    cutoff = numpy.percentile(errors, percentile)
+    filtered = errors[errors <= cutoff]
+
+    if figure is None or axis is None:
+        figure, axis = pyplot.subplots(figsize=(8, 6))
+
+    axis.hist(filtered, bins=35)
+    axis.set_xlabel("MAE")
+    axis.set_ylabel("Counts")
+    axis.set_title(title)
+    figure.tight_layout()
+    if show:
+        pyplot.show()
 
 
 def plot_distributions(row, bounds):
@@ -126,15 +142,34 @@ def sample_patterns(metadatas, result_dfs, patterns, N):
                     ),
                     rgba,
                     edge,
+                    f"File index: {file_index}",
                 )
             )
 
     get_points(source=worst, cmap="autumn", vmax=0.75, edge="r")
     get_points(source=best, cmap="Greens", vmin=0.4, vmax=0.8, edge="g")
 
-    for points, color, edge in plot:
+    for points, color, edge, label in plot:
         color = color[:3] + (0.9,)
         pyplot.scatter(points[:, 0], points[:, 1], color=color, edgecolor=edge, s=55)
+        # Sort by closeness to the center and do a weird splat line plot to
+        # show connectivity
+        points = numpy.array(
+            sorted(
+                points, key=lambda x: numpy.linalg.norm(x - numpy.mean(points, axis=0))
+            )
+        )
+        pyplot.plot(
+            sum(
+                [[points[0, 0], points[i, 0]] for i in range(1, len(points))], start=[]
+            ),
+            sum(
+                [[points[0, 1], points[i, 1]] for i in range(1, len(points))], start=[]
+            ),
+            color=color,
+            label=label,
+        )
+    pyplot.legend()
     pyplot.show()
 
 
@@ -164,6 +199,26 @@ def by_sample_num(metadatas, result_dfs):
     axis.set_xlabel("Number of samples")
     axis.set_ylabel("Best average MAE for a pattern")
     axis.set_xticks(unique)
+    pyplot.show()
+
+
+def by_strategy(metadatas, result_dfs):
+
+    unique = sorted(numpy.unique([m["strategy"] for m in metadatas]))
+    figure, axes = pyplot.subplots(1, len(unique), figsize=(10, 6))
+
+    for value, axis in zip(unique, axes):
+        full_mae_hist(
+            dfs=[
+                df
+                for i, df in enumerate(result_dfs)
+                if metadatas[i]["strategy"] == value
+            ],
+            figure=figure,
+            axis=axis,
+            show=False,
+            title=f"All MAE for sampling strategy {value}",
+        )
     pyplot.show()
 
 
@@ -210,6 +265,11 @@ if __name__ == "__main__":
         help="Plot error of best pattern by number of samples",
         action="store_true",
     )
+    parser.add_argument(
+        "--by-strategy",
+        help="Plot error histogram by sampling strategy",
+        action="store_true",
+    )
     args = parser.parse_args()
 
     # Check that all results exist and have corresponding patterns
@@ -230,6 +290,9 @@ if __name__ == "__main__":
     patterns = [yaml.safe_load(path.open("r")) for path in pattern_paths]
     metadatas = [yaml.safe_load(path.open("r")) for path in metadata_paths]
 
+    for i, path in enumerate(metadata_paths):
+        print(f"File index: {i} = {path}")
+
     if args.full_mae_hist:
         full_mae_hist(result_dfs)
     if args.full_sample_hist:
@@ -240,3 +303,5 @@ if __name__ == "__main__":
         sample_patterns(metadatas, result_dfs, patterns, args.top_N)
     if args.by_sample_num:
         by_sample_num(metadatas, result_dfs)
+    if args.by_strategy:
+        by_strategy(metadatas, result_dfs)
