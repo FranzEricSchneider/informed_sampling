@@ -118,7 +118,6 @@ def circle_sample(bounds, buffer, N):
     return x, y
 
 
-
 def main(
     x_mean,
     x_std,
@@ -133,6 +132,7 @@ def main(
     num_samples,
     strategy,
     sampler,
+    augmentation,
     noise_std,
 ):
 
@@ -147,6 +147,7 @@ def main(
         "num_samples": num_samples,
         "noise_std": noise_std,
         "strategy": strategy,
+        "augmentation": augmentation,
     }
 
     for pattern_idx in tqdm(range(assess_j)):
@@ -174,6 +175,14 @@ def main(
                 bounds=bounds, spacing=(bounds[1] - bounds[0]) / 10
             )
 
+            if augmentation == "none":
+                aug_x = x.copy()
+                aug_y = y.copy()
+            elif augmentation == "face-peak":
+                aug_x, aug_y = rotate(x, y, bounds, pboid.angle(bounds))
+            else:
+                raise NotImplementedError(augmentation)
+
             # Calculate noise on the measurement as a fraction around 1.0
             noise = numpy.random.normal(
                 loc=1.0,
@@ -181,8 +190,8 @@ def main(
                 size=num_samples,
             )
             # Add the noise to the measurements
-            z = pboid.predict(x, y) * noise
-            fit_pboid = Paraboloid.fit(x, y, z)
+            z = pboid.predict(aug_x, aug_y) * noise
+            fit_pboid = Paraboloid.fit(aug_x, aug_y, z)
 
             # Build up our assessment data
             result = {
@@ -206,6 +215,29 @@ def main(
     yaml.dump(patterns, open(f"/tmp/parabola_patterns_{timestamp}.yaml", "w"))
     yaml.dump(metadata, open(f"/tmp/parabola_metadata_{timestamp}.yaml", "w"))
     print(f"Saved run to /tmp/parabola_*_{timestamp}.csv/yaml")
+
+
+def rotate(x, y, bounds, angle):
+
+    # Center xy, temporarily
+    center = numpy.array(
+        [
+            numpy.mean([bounds[0], bounds[1]]),
+            numpy.mean([bounds[2], bounds[3]]),
+        ]
+    ).reshape(2, 1)
+    xy = numpy.vstack([x, y])
+    centered = xy - center
+
+    # Make a rotation matrix and apply to the centered points
+    R = numpy.array(
+        [[numpy.cos(angle), -numpy.sin(angle)], [numpy.sin(angle), numpy.cos(angle)]]
+    )
+    rotated = R @ centered
+
+    # Add the center offset back in and return
+    reset = rotated + center
+    return reset[0], reset[1]
 
 
 if __name__ == "__main__":
@@ -294,6 +326,13 @@ if __name__ == "__main__":
         choices=["random", "poisson", "grid", "circle"],
         default="random",
     )
+    parser.add_argument(
+        "-A",
+        "--augmentation",
+        help="Possible augmentation options",
+        choices=["none", "face-peak"],
+        default="none",
+    )
     args = parser.parse_args()
 
     assert args.xmax > args.xmin
@@ -323,5 +362,6 @@ if __name__ == "__main__":
         num_samples=args.num_samples,
         strategy=args.sampler_strategy,
         sampler=sampler_map[args.sampler_strategy],
+        augmentation=args.augmentation,
         noise_std=args.noise_std,
     )

@@ -37,7 +37,7 @@ def test_generate():
         assert integral_values[1] >= integral
 
         # The peaks are (on average) at the mean
-        peaks.append(pboid.peak())
+        peaks.append(pboid.peak)
 
     peaks = numpy.array(peaks)
     assert numpy.isclose(peaks[:, 0].mean(), x_mean, atol=5)
@@ -151,7 +151,32 @@ class TestErrors:
 
 def test_peak():
     pboid = Paraboloid(vertex2std(A=-1, B=-1, C=0, xv=3.5, yv=-0.2))
-    assert numpy.allclose(pboid.peak(), [3.5, -0.2, 0])
+    assert numpy.allclose(pboid.peak, [3.5, -0.2, 0])
+
+
+@pytest.mark.parametrize(
+    "coeff, bounds, expected",
+    (
+        (
+            vertex2std(A=-1, B=-1, C=0, xv=10, yv=5),
+            [0, 10, 0, 10],
+            0.0,
+        ),
+        (
+            vertex2std(A=-1, B=-1, C=0, xv=10, yv=5),
+            [0, 10, -5, 5],
+            numpy.deg2rad(45),
+        ),
+        (
+            vertex2std(A=-1, B=-1, C=0, xv=0, yv=0),
+            [0, 60, 0, 60],
+            numpy.deg2rad(-135),
+        ),
+    ),
+)
+def test_angle(coeff, bounds, expected):
+    pboid = Paraboloid(coeff)
+    assert numpy.isclose(pboid.angle(bounds), expected)
 
 
 def test_vertex2std():

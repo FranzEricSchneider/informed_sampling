@@ -27,7 +27,9 @@ def cdf(axis, vector, label="", percentiles=None):
     axis.plot(x, y, lw=2, label=label)
     if percentiles is not None:
         for percentile in percentiles:
-            axis.axvline(numpy.percentile(vector, percentile), color="r", linestyle="dashed")
+            axis.axvline(
+                numpy.percentile(vector, percentile), color="r", linestyle="dashed"
+            )
 
 
 def full_mae_cdf(
@@ -132,16 +134,18 @@ def sample_patterns(metadatas, result_dfs, patterns, N):
     all_results = pandas.concat(result_dfs.values())
     worst = get_top_n(all_results, N, "mae")
     best = get_last_n(all_results, N, "mae")
+    bounds = [v for v in metadatas.values()][0]["bounds"]
 
-    figure = pyplot.figure(figsize=(6, 6))
+    figure, axes = pyplot.subplots(2, N, figsize=(15, 8))
 
     # Build up what we need to plot (points and colors)
     plot = []
 
-    def get_points(cmap, source, vmin=0, vmax=1, edge="k"):
-        for ((pattern, file_index), value), rgba in zip(
+    def get_points(source, cmap, row, vmin=0, vmax=1, edge="k"):
+        for ((pattern, file_index), value), rgba, axis in zip(
             source.items(),
             cmap_iterator(cmap, N, vmin, vmax),
+            row,
         ):
             num_samples = metadatas[file_index]["num_samples"]
             pattern_dict = patterns[file_index]
@@ -156,15 +160,16 @@ def sample_patterns(metadatas, result_dfs, patterns, N):
                     rgba,
                     edge,
                     f"File index: {file_index}",
+                    axis,
                 )
             )
 
-    get_points(source=worst, cmap="autumn", vmax=0.75, edge="r")
-    get_points(source=best, cmap="Greens", vmin=0.4, vmax=0.8, edge="g")
+    get_points(source=worst, cmap="autumn", row=axes[0], vmax=0.75, edge="r")
+    get_points(source=best, cmap="Greens", row=axes[1], vmin=0.4, vmax=0.8, edge="g")
 
-    for points, color, edge, label in plot:
+    for points, color, edge, label, axis in plot:
         color = color[:3] + (0.9,)
-        pyplot.scatter(points[:, 0], points[:, 1], color=color, edgecolor=edge, s=55)
+        axis.scatter(points[:, 0], points[:, 1], color=color, edgecolor=edge, s=55)
         # Sort by closeness to the center and do a weird splat line plot to
         # show connectivity
         points = numpy.array(
@@ -172,7 +177,7 @@ def sample_patterns(metadatas, result_dfs, patterns, N):
                 points, key=lambda x: numpy.linalg.norm(x - numpy.mean(points, axis=0))
             )
         )
-        pyplot.plot(
+        axis.plot(
             sum(
                 [[points[0, 0], points[i, 0]] for i in range(1, len(points))], start=[]
             ),
@@ -180,9 +185,12 @@ def sample_patterns(metadatas, result_dfs, patterns, N):
                 [[points[0, 1], points[i, 1]] for i in range(1, len(points))], start=[]
             ),
             color=color,
-            label=label,
         )
-    pyplot.legend()
+        axis.set_title(label)
+        axis.set_xlim(bounds[:2])
+        axis.set_ylim(bounds[2:])
+
+    figure.tight_layout()
     pyplot.show()
 
 
@@ -192,12 +200,16 @@ def bar_patterns(metas, result_dfs, N):
     worst = get_top_n(all_results, N, "mae")
     best = get_last_n(all_results, N, "mae")
 
+    def make_key(meta):
+        key = f"{meta['strategy']}-S#{meta['num_samples']}"
+        if meta["augmentation"] != "none":
+            key += f"-{meta['augmentation']}"
+        return key
+
     x = list(range(2 * N + 1))
     y = numpy.hstack([worst.values, [0], best[::-1].values])
     labels = [
-        f"{metas[fi]['strategy']}-S#{metas[fi]['num_samples']}"
-        for series in [worst, best[::-1]]
-        for _, fi in series.keys()
+        make_key(metas[fi]) for series in [worst, best[::-1]] for _, fi in series.keys()
     ]
     labels.insert(N, "...")
 
@@ -222,11 +234,7 @@ def by_sample_num(metadatas, result_dfs):
     y = []
     for value in unique:
         all_results = pandas.concat(
-            [
-                df
-                for i, df in result_dfs.items()
-                if metadatas[i]["num_samples"] == value
-            ]
+            [df for i, df in result_dfs.items() if metadatas[i]["num_samples"] == value]
         )
         for mae in get_last_n(all_results, 1, "mae"):
             y.append(mae)
@@ -261,12 +269,37 @@ def by_strategy(metadatas, result_dfs):
     pyplot.show()
 
 
+def by_augmentation(metadatas, result_dfs):
+
+    unique = sorted(
+        numpy.unique([m.get("augmentation", "none") for m in metadatas.values()])
+    )
+    figure, axis = pyplot.subplots(1, 1, figsize=(6, 6))
+
+    for value in unique:
+        full_mae_cdf(
+            dfs={
+                i: df
+                for i, df in result_dfs.items()
+                if metadatas[i].get("augmentation", "none") == value
+            },
+            figure=figure,
+            axis=axis,
+            show=False,
+            label=value,
+            title=f"All MAE for sampling augmentation {value}",
+        )
+    figure.legend()
+    pyplot.show()
+
+
 def metamasks(metadatas, include_flag, exclude_flag):
 
     # List the allowable filter candidates
     datatypes = {
         "num_samples": int,
         "strategy": str,
+        "augmentation": str,
     }
 
     if include_flag is None:
@@ -346,7 +379,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--by-strategy",
-        help="Plot error histogram by sampling strategy",
+        help="Plot error CDF by sampling strategy",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--by-augmentation",
+        help="Plot error CDF by augmentation",
         action="store_true",
     )
     parser.add_argument(
@@ -377,7 +415,9 @@ if __name__ == "__main__":
     for i, df in enumerate(result_dfs):
         df["file_index"] = i
     patterns = [yaml.safe_load(path.open("r")) for path in pattern_paths]
-    metadatas = [yaml.safe_load(path.open("r")) for i, path in enumerate(metadata_paths)]
+    metadatas = [
+        yaml.safe_load(path.open("r")) for i, path in enumerate(metadata_paths)
+    ]
 
     # Filter by include and exclude
     include = metamasks(metadatas, args.include, args.exclude)
@@ -403,3 +443,5 @@ if __name__ == "__main__":
         by_sample_num(metadatas, result_dfs)
     if args.by_strategy:
         by_strategy(metadatas, result_dfs)
+    if args.by_augmentation:
+        by_augmentation(metadatas, result_dfs)

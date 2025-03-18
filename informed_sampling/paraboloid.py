@@ -163,6 +163,7 @@ class Paraboloid:
         )
         return result
 
+    @property
     def peak(self):
         """Return the (x, y, z) peak of this paraboloid."""
         a, b, c, d, e, f = self.coeff
@@ -171,6 +172,24 @@ class Paraboloid:
         y = ((-e * 2 * a) + (d * c)) / denom
         z = self.predict(x, y)
         return numpy.array([x, y, z])
+
+    def angle(self, bounds):
+        """
+        Return the angle (rad) of the peak from the center of the bounds,
+        where angle=0 is when the peak is +X from the center.
+        """
+        center = numpy.array(
+            [
+                numpy.mean([bounds[0], bounds[1]]),
+                numpy.mean([bounds[2], bounds[3]]),
+            ]
+        )
+        vector = self.peak[:2] - center
+
+        x_axis = numpy.array([1, 0])
+        y_axis = numpy.array([0, 1])
+
+        return numpy.arctan2(vector.dot(y_axis), vector.dot(x_axis))
 
     def r2_score(self):
         """
