@@ -61,7 +61,7 @@ def full_mae_cdf(
     axis.set_xlabel("MAE")
     axis.set_ylabel("Counts")
     axis.set_title(title)
-    axis.grid()
+    axis.grid("on")
     figure.tight_layout()
     if show:
         pyplot.show()
